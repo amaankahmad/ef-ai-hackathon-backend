@@ -23,7 +23,7 @@ class PreInspectionAI:
         except Exception as e:
             return str(e)
 
-@app.route('/pre_inspection', methods=['POST'])
+@app.route('/pre-inspection', methods=['POST'])
 def pre_inspection():
     try:
         data = request.json
