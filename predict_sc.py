@@ -1,42 +1,45 @@
-import flask
-from flask import Flask, request, jsonify
-from flask_restful import Resource, Api
-import numpy as np
-import PIL
+# Melanoma classification model
 import tensorflow as tf
 
+melanoma_model = tf.keras.models.load_model('EfficientNetB6_512x512_2020_epoch15_auc_0.96.h55')
+
+def predict_melanoma(image):
+  # Preprocess 
+  img = preprocess(image) 
+  
+  # Predict
+  pred = melanoma_model.predict(img)[0]
+  confidence = pred[0]
+
+  return {
+    'confidence': confidence 
+  }
+
+# Questionnaire API
+from flask import Flask, request, jsonify 
+import requests
+
 app = Flask(__name__)
-api = Api(app)
 
-# Model parameters
-image_size = 256 
-crop_size = 250
+@app.route('/diagnose', methods=['POST'])
+def diagnose():
 
-# Load model
-model = tf.keras.models.load_model('EfficientNetB6_512x512_2020_epoch15_auc_0.96.h5')
+  # Classify melanoma
+  image = request.files['image'] 
+  prediction = predict_melanoma(image)
 
-class MelanomaPrediction(Resource):
-    def post(self):
-        # Get image from post request
-        imagefile = request.files['image'] 
-        image = PIL.Image.open(imagefile.stream)
+  # Get questionnaire
+  confidence = prediction['confidence']
+  response = requests.post('http://localhost:5000/pre_inspection', 
+                           json={'confidence': confidence})
 
-        # Preprocess
-        img = np.asarray(image.resize((image_size, image_size))) / 255.0
-        img = tf.image.central_crop(img, crop_size / image_size)
-        img = np.expand_dims(img, axis=0)
+  # Return diagnosis  
+  result = {
+    'prediction': prediction,
+    'questionnaire': response.json()
+  }
 
-        # Prediction
-        prediction = model.predict(img)[0]
-        confidence = prediction[0]
-
-        # Build response
-        response = {
-            'prediction': float(confidence)
-        }
-        return jsonify(response)
-
-api.add_resource(MelanomaPrediction, '/predict')
+  return jsonify(result)
 
 if __name__ == '__main__':
     app.run(debug=True)
